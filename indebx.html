@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F&V PLU Search</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            padding: 20px; 
+            background-color: #ffffff; 
+            color: #333333; 
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container { 
+            width: 100%;
+            max-width: 450px; 
+            margin-top: 20px;
+        }
+        
+        /* New Rounded Title & Subtitle */
+        .header-section { text-align: center; margin-bottom: 25px; }
+        .title-box {
+            background-color: #f0fdf4; /* Soft, fresh green background */
+            border: 1px solid #bbf7d0;
+            border-radius: 30px; /* Fully rounded corners */
+            padding: 10px 25px;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+        h2 { color: #166534; margin: 0; font-size: 22px; font-weight: 600; }
+        .subtitle { font-size: 14px; color: #666666; }
+        
+        /* Upload Section */
+        #uploadSection { 
+            padding: 25px 20px; 
+            border: 1px solid #e0e0e0; 
+            border-radius: 8px; 
+            background: #fafafa; 
+            text-align: center;
+        }
+        #uploadSection p { color: #666; font-size: 15px; margin-bottom: 15px; }
+        input[type="file"] { font-size: 14px; }
+        
+        /* Search Section */
+        #searchSection { display: none; }
+        input[type="number"] { 
+            width: 100%; 
+            padding: 16px; 
+            font-size: 20px; 
+            border: 1px solid #cccccc; 
+            border-radius: 8px; 
+            box-sizing: border-box; 
+            outline: none; 
+            transition: border-color 0.2s; 
+            text-align: center;
+        }
+        input[type="number"]:focus { border-color: #2e7d32; }
+        
+        /* Results */
+        .result-card { 
+            margin-top: 20px; 
+            padding: 25px 20px; 
+            border-radius: 8px; 
+            display: none; 
+            border: 1px solid #e0e0e0;
+            text-align: center;
+        }
+        .found { border-top: 6px solid #2e7d32; display: block; }
+        .plu-label { font-size: 12px; color: #757575; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+        .plu-number { font-size: 72px; font-weight: bold; color: #1b5e20; margin: 8px 0; line-height: 1; }
+        .description { font-size: 18px; color: #212121; margin-bottom: 12px; font-weight: 500; }
+        .meta-info { font-size: 14px; color: #616161; }
+        
+        .not-found { 
+            color: #d32f2f; 
+            margin-top: 20px; 
+            font-size: 15px;
+            display: none; 
+            padding: 15px; 
+            border: 1px solid #ef9a9a;
+            border-radius: 8px;
+            background: #ffebee;
+            text-align: center;
+        }
+        
+        /* Footer */
+        .footer { 
+            margin-top: auto; 
+            padding: 20px 0;
+            font-size: 13px; 
+            color: #9e9e9e; 
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-section">
+        <div class="title-box">
+            <h2>F&V Lookup</h2>
+        </div>
+        <div class="subtitle">Enter a SKU ID to instantly find the PLU code.</div>
+    </div>
+    
+    <div id="uploadSection">
+        <p>Select your Excel or CSV file to load the database.</p>
+        <input type="file" id="fileInput" accept=".xlsx, .xls, .csv">
+    </div>
+
+    <div id="searchSection">
+        <input type="number" id="skuInput" placeholder="Enter SKU ID..." autocomplete="off">
+        
+        <div id="result" class="result-card">
+            <div class="description" id="itemDesc"></div>
+            <div class="plu-label">PLU CODE</div>
+            <div class="plu-number" id="pluDisplay"></div>
+            <div class="meta-info" id="itemMeta"></div>
+        </div>
+        <div id="error" class="not-found">SKU not found. Check the ID and try again.</div>
+    </div>
+</div>
+
+<div class="footer">
+    Created by Lucifer
+</div>
+
+<script>
+    let pluData = {};
+
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            const json = XLSX.utils.sheet_to_json(worksheet);
+            
+            pluData = {}; 
+
+            json.forEach(row => {
+                const sku = row['SKU ID'] || row['SKU_ID'] || row['sku id'];
+                const plu = row['PLU'] || row['Selling Price PLU'] || row['Selling Price']; 
+                const desc = row['Description'] || row['Item Name'];
+                const uom = row['UOM'] || row['Unit'];
+
+                if (sku && plu) {
+                    pluData[String(sku).trim()] = {
+                        plu: String(plu).trim(),
+                        desc: desc ? String(desc).trim() : 'Unknown Item',
+                        uom: uom ? String(uom).trim() : 'N/A'
+                    };
+                }
+            });
+
+            document.getElementById('uploadSection').style.display = 'none';
+            document.getElementById('searchSection').style.display = 'block';
+            document.getElementById('skuInput').focus();
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    const input = document.getElementById('skuInput');
+    const resultDiv = document.getElementById('result');
+    const errorDiv = document.getElementById('error');
+
+    input.addEventListener('input', () => {
+        const val = input.value.trim();
+        
+        if (pluData[val]) {
+            document.getElementById('pluDisplay').textContent = pluData[val].plu;
+            document.getElementById('itemDesc').textContent = pluData[val].desc;
+            document.getElementById('itemMeta').textContent = "Unit: " + pluData[val].uom;
+            resultDiv.classList.add('found');
+            errorDiv.style.display = 'none';
+        } else {
+            resultDiv.classList.remove('found');
+            if (val.length >= 7) {
+                errorDiv.style.display = 'block';
+            } else {
+                errorDiv.style.display = 'none';
+            }
+        }
+    });
+</script>
+
+</body>
+</html>
