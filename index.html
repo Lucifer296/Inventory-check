@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>F&V PLU Search</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥬</text></svg>">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { 
@@ -23,14 +24,17 @@
             margin-top: 20px;
         }
         
-        /* New Rounded Title & Subtitle */
+        /* Rounded Title & Subtitle */
         .header-section { text-align: center; margin-bottom: 25px; }
         .title-box {
-            background-color: #f0fdf4; /* Soft, fresh green background */
+            background-color: #f0fdf4; 
             border: 1px solid #bbf7d0;
-            border-radius: 30px; /* Fully rounded corners */
+            border-radius: 30px; 
             padding: 10px 25px;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
             margin-bottom: 8px;
         }
         h2 { color: #166534; margin: 0; font-size: 22px; font-weight: 600; }
@@ -104,11 +108,106 @@
 <div class="container">
     <div class="header-section">
         <div class="title-box">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 22a8 8 0 0 1 8-8h4a8 8 0 0 1 8 8"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+                <path d="M18 2l-2 4"></path>
+                <path d="M6 2l2 4"></path>
+            </svg>
             <h2>F&V Lookup</h2>
         </div>
         <div class="subtitle">Enter a SKU ID to instantly find the PLU code.</div>
     </div>
     
+    <div id="uploadSection">
+        <p>Select your Excel or CSV file to load the database.</p>
+        <input type="file" id="fileInput" accept=".xlsx, .xls, .csv">
+    </div>
+
+    <div id="searchSection">
+        <input type="number" id="skuInput" placeholder="Enter SKU ID..." autocomplete="off">
+        
+        <div id="result" class="result-card">
+            <div class="description" id="itemDesc"></div>
+            <div class="plu-label">PLU CODE</div>
+            <div class="plu-number" id="pluDisplay"></div>
+            <div class="meta-info" id="itemMeta"></div>
+        </div>
+        <div id="error" class="not-found">SKU not found. Check the ID and try again.</div>
+    </div>
+</div>
+
+<div class="footer">
+    Created by Lucifer
+</div>
+
+<script>
+    let pluData = {};
+
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            const json = XLSX.utils.sheet_to_json(worksheet);
+            
+            pluData = {}; 
+
+            json.forEach(row => {
+                const sku = row['SKU ID'] || row['SKU_ID'] || row['sku id'];
+                const plu = row['PLU'] || row['Selling Price PLU'] || row['Selling Price']; 
+                const desc = row['Description'] || row['Item Name'];
+                const uom = row['UOM'] || row['Unit'];
+
+                if (sku && plu) {
+                    pluData[String(sku).trim()] = {
+                        plu: String(plu).trim(),
+                        desc: desc ? String(desc).trim() : 'Unknown Item',
+                        uom: uom ? String(uom).trim() : 'N/A'
+                    };
+                }
+            });
+
+            document.getElementById('uploadSection').style.display = 'none';
+            document.getElementById('searchSection').style.display = 'block';
+            document.getElementById('skuInput').focus();
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    const input = document.getElementById('skuInput');
+    const resultDiv = document.getElementById('result');
+    const errorDiv = document.getElementById('error');
+
+    input.addEventListener('input', () => {
+        const val = input.value.trim();
+        
+        if (pluData[val]) {
+            document.getElementById('pluDisplay').textContent = pluData[val].plu;
+            document.getElementById('itemDesc').textContent = pluData[val].desc;
+            document.getElementById('itemMeta').textContent = "Unit: " + pluData[val].uom;
+            resultDiv.classList.add('found');
+            errorDiv.style.display = 'none';
+        } else {
+            resultDiv.classList.remove('found');
+            if (val.length >= 7) {
+                errorDiv.style.display = 'block';
+            } else {
+                errorDiv.style.display = 'none';
+            }
+        }
+    });
+</script>
+
+</body>
+</html>
     <div id="uploadSection">
         <p>Select your Excel or CSV file to load the database.</p>
         <input type="file" id="fileInput" accept=".xlsx, .xls, .csv">
